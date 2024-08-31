@@ -1,11 +1,18 @@
+#!/usr/bin/env python3
+
+import argparse
 import cantools
 import csv as csv_lib
+import sys
 
+from pprint import pprint
+from pathlib import Path
 
 def convert_candump_to_csv(dbc, candump, csv):
     try:
         print(f"Loading DBC file: {dbc}")
         db = cantools.database.load_file(dbc)
+        pprint(vars(db))
         print(f"Successfully loaded DBC file.")
     except Exception as e:
         print(f"Error loading DBC file: {e}")
@@ -53,28 +60,33 @@ def convert_candump_to_csv(dbc, candump, csv):
                 if not message:
                     print(f"Message with ID {can_id} not found in DBC file.")
                     continue
-
-                decoded_signals = message.decode(can_payload_bytes)
-
-                headers.update(decoded_signals.keys())
-
-                # Signal dictionary
-                signal_data = {signal_name: '' for signal_name in headers}
-                # Create a row of data with placeholders for signals
-                row_data = {
-                    'Timestamp': timestamp,
-                    'Interface': interface,
-                    'Message Name': message.name,
-                    **signal_data
-                }
-
-                # Update row data with actual signal values
-                row_data.update(decoded_signals)
-
-                data_rows.append(row_data)
-
             except Exception as e:
-                print(f"Error getting message by frame ID {can_id}: {e}. It couldn't exist")
+                print(f"Error getting message by frame ID {can_id}: {e}. It doesn't exist.")
+                continue
+
+            try:
+                decoded_signals = message.decode(can_payload_bytes)
+            except Exception as e:
+                print(f"Error decoding message with ID {can_id}: {e}")
+                continue
+
+            headers.update(decoded_signals.keys())
+
+            # Signal dictionary
+            signal_data = {signal_name: '' for signal_name in headers}
+            # Create a row of data with placeholders for signals
+            row_data = {
+                'Timestamp': timestamp,
+                'Interface': interface,
+                'Message Name': message.name,
+                **signal_data
+            }
+
+            # Update row data with actual signal values
+            row_data.update(decoded_signals)
+
+            data_rows.append(row_data)
+
         except Exception as e:
             print(f"Error processing line '{line}': {e}")
 
@@ -104,19 +116,26 @@ def convert_candump_to_csv(dbc, candump, csv):
 
 
 if __name__ == "__main__":
-    while True:
-        # log_file = input("Enter the name of the CAN log file: ").strip()
-        # dbc_file = input("Enter the name of the DBC file: ").strip()
-        # csv_file = input("Enter the name of the output CSV file: ").strip()
-        log_file = "MCB.LOG.1_ok"
-        dbc_file = "MCB.dbc"
-        csv_file = "MCB.csv"
+    parser = argparse.ArgumentParser(description="Convert CAN log to human-readable CSV.")
+    parser.add_argument("-c", "--candump", type=Path, required=True, help="Path to the CAN dump file.")
+    parser.add_argument("-d", "--dbc", type=Path, required=True, help="Path to the DBC file.")
+    parser.add_argument("-o", "--output", type=Path, required=True, help="Path of the output file.")
+    args = parser.parse_args()
 
-        if log_file and dbc_file and csv_file:
-            if convert_candump_to_csv(dbc_file, log_file, csv_file):
-                print(f"Conversion completed successfully! Data has been saved to '{csv_file}'.")
-            else:
-                print(f"Conversion failed. Please check the provided files and try again.")
-            break
-        else:
-            print("All file names are required. Please provide them all.")
+    if not args.candump.is_file():
+        print(f"The CAN dump file '{args.candump}' is missing.", file=sys.stderr)
+        sys.exit(1)
+
+    if not args.dbc.is_file():
+        print(f"The DBC file '{args.dbc}' is missing.", file=sys.stderr)
+        sys.exit(1)
+
+    if args.output.is_file():
+        print(f"The output file '{args.output}' already exists. Please specify a unique name.", file=sys.stderr)
+        sys.exit(1)
+
+
+    if convert_candump_to_csv(args.dbc, args.candump, args.output):
+        print(f"Conversion completed successfully! Data has been saved to '{args.output}'.")
+    else:
+        print(f"Conversion failed. Please check the provided files and try again.")
