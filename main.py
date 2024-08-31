@@ -5,14 +5,12 @@ import cantools
 import csv as csv_lib
 import sys
 
-from pprint import pprint
 from pathlib import Path
 
 def convert_candump_to_csv(dbc, candump, csv):
     try:
         print(f"Loading DBC file: {dbc}")
         db = cantools.database.load_file(dbc)
-        pprint(vars(db))
         print(f"Successfully loaded DBC file.")
     except Exception as e:
         print(f"Error loading DBC file: {e}")
